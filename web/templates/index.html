@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Graph Neural Tutor</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- MathJax -->
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        :root {
+            /* Dark Theme (Default) */
+            --bg-primary: #0f0f0f;
+            --bg-secondary: #1a1a1a;
+            --bg-tertiary: #262626;
+            --display-bg: #1a1a1a;
+            --display-text: #e0e0e0;
+            --text-primary: #f5f5f5;
+            --text-secondary: #b0b0b0;
+            --text-tertiary: #808080;
+            --accent: #3b82f6;
+            --accent-hover: #60a5fa;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --border: #333333;
+            --radius: 8px;
+            --transition: all 0.15s ease;
+            --font-mono: 'IBM Plex Mono', monospace;
+            --font-sans: 'Inter', -apple-system, sans-serif;
+            
+            /* Typography Scale */
+            --font-xs: clamp(0.7rem, 2vw, 0.8rem);
+            --font-sm: clamp(0.8rem, 2.5vw, 0.9rem);
+            --font-base: clamp(0.9rem, 3vw, 1rem);
+            --font-lg: clamp(1rem, 3.5vw, 1.2rem);
+            --font-xl: clamp(1.2rem, 4vw, 1.5rem);
+            --font-2xl: clamp(1.5rem, 5vw, 2rem);
+            
+            /* Professional Spacing System */
+            --space-xs: clamp(0.25rem, 1vw, 0.5rem);
+            --space-sm: clamp(0.5rem, 1.5vw, 0.75rem);
+            --space-base: clamp(0.75rem, 2vw, 1rem);
+            --space-lg: clamp(1rem, 2.5vw, 1.5rem);
+            --space-xl: clamp(1.5rem, 3vw, 2rem);
+            --space-2xl: clamp(2rem, 4vw, 3rem);
+        }
+
+        /* Light Theme */
+        [data-theme="light"] {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --bg-tertiary: #e9ecef;
+            --display-bg: #f8f9fa;
+            --display-text: #212529;
+            --text-primary: #212529;
+            --text-secondary: #6c757d;
+            --text-tertiary: #adb5bd;
+            --accent: #0d6efd;
+            --accent-hover: #0b5ed7;
+            --success: #198754;
+            --warning: #fd7e14;
+            --border: #dee2e6;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+            height: 100vh;
+            overflow: hidden;
+            font-size: var(--font-base);
+        }
+
+        .app {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            padding: var(--space-lg) var(--space-xl);
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            min-height: 80px;
+        }
+
+        .header-content {
+            flex: 1;
+        }
+
+        .title {
+            font-size: var(--font-lg);
+            font-weight: 600;
+            color: var(--accent);
+            margin-bottom: 2px;
+            font-family: var(--font-sans);
+        }
+
+        .subtitle {
+            font-size: var(--font-xs);
+            color: var(--text-secondary);
+            font-weight: 400;
+        }
+
+        .theme-toggle {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 8px 12px;
+            color: var(--text-primary);
+            cursor: pointer;
+            font-size: 14px;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .theme-toggle:hover {
+            background: var(--accent);
+            color: white;
+        }
+
+        .main {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr;
+            overflow: hidden;
+        }
+
+        @media (min-width: 768px) {
+            .main {
+                grid-template-columns: clamp(18rem, 32vw, 24rem) 1fr;
+            }
+        }
+
+        @media (min-width: 1200px) {
+            .main {
+                grid-template-columns: clamp(20rem, 30vw, 26rem) 1fr;
+            }
+        }
+
+        .sidebar {
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            overflow-y: auto;
+            height: 100%;
+            padding: var(--space-lg);
+        }
+
+        .content {
+            background: var(--bg-primary);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            padding: var(--space-xl);
+        }
+
+        .section {
+            padding: var(--space-lg) 0;
+        }
+
+        .result-section {
+            flex: 1;
+            overflow-y: auto;
+            min-height: 0;
+        }
+
+        .section-title {
+            font-size: var(--font-lg);
+            font-weight: 600;
+            color: var(--accent);
+            margin-bottom: var(--space-base);
+            font-family: var(--font-mono);
+        }
+
+        .form-group {
+            margin-bottom: var(--space-xl);
+        }
+
+        .label {
+            display: block;
+            font-size: var(--font-sm);
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: var(--space-sm);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .input {
+            width: 100%;
+            padding: var(--space-lg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--display-bg);
+            font-family: var(--font-mono);
+            font-size: var(--font-base);
+            color: var(--display-text);
+            transition: var(--transition);
+            outline: none;
+            min-height: 48px;
+        }
+
+        .input:focus {
+            border-color: var(--accent);
+            background: var(--bg-secondary);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+        }
+
+        .input::placeholder {
+            color: var(--text-tertiary);
+            opacity: 0.6;
+        }
+
+        .select {
+            width: 100%;
+            padding: var(--space-base) var(--space-lg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--bg-tertiary);
+            font-size: var(--font-sm);
+            color: var(--text-primary);
+            transition: var(--transition);
+            outline: none;
+            cursor: pointer;
+        }
+
+        .select:hover {
+            background: var(--bg-secondary);
+        }
+
+        .btn {
+            width: 100%;
+            padding: var(--space-lg) var(--space-xl);
+            background: var(--accent);
+            border: 1px solid var(--accent);
+            border-radius: var(--radius);
+            color: white;
+            font-size: var(--font-base);
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            outline: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-sm);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-family: var(--font-mono);
+            min-height: 56px;
+        }
+
+        .btn:hover {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            background: var(--bg-tertiary);
+            border-color: var(--border);
+        }
+
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s linear infinite;
+            display: none;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .examples-container {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-sm);
+        }
+
+        .example {
+            padding: var(--space-lg);
+            background: var(--bg-tertiary);
+            border-radius: var(--radius);
+            cursor: pointer;
+            transition: var(--transition);
+            border: 1px solid transparent;
+            margin-bottom: var(--space-base);
+        }
+
+        .example:hover {
+            background: var(--bg-primary);
+            border-color: var(--accent);
+        }
+
+        .example-eq {
+            font-family: var(--font-mono);
+            font-size: var(--font-sm);
+            color: var(--text-primary);
+            margin-bottom: 2px;
+        }
+
+        .example-arrow {
+            font-size: var(--font-xs);
+            color: var(--accent);
+            margin: 2px 0;
+        }
+
+        .result-section {
+            flex: 1;
+            overflow-y: auto;
+            padding: var(--space-lg);
+        }
+
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-tertiary);
+            text-align: center;
+            padding: var(--space-2xl);
+        }
+
+        .empty-icon {
+            font-size: clamp(3rem, 10vw, 4rem);
+            margin-bottom: var(--space-xl);
+            opacity: 0.3;
+        }
+
+        .results {
+            display: none;
+        }
+
+        .results.show {
+            display: block;
+        }
+
+        .equation-display {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-lg);
+            margin: var(--space-xl) 0;
+            padding: var(--space-xl);
+            background: var(--display-bg);
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            flex-wrap: wrap;
+        }
+
+        .eq-box {
+            padding: var(--space-lg);
+            background: var(--bg-tertiary);
+            border-radius: var(--radius);
+            font-family: var(--font-mono);
+            font-size: var(--font-lg);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            min-width: 0;
+            word-break: break-all;
+        }
+
+        .arrow {
+            color: var(--accent);
+            font-size: var(--font-xl);
+            font-weight: bold;
+        }
+
+        .result-grid {
+            display: grid;
+            gap: var(--space-base);
+            margin-bottom: var(--space-xl);
+        }
+
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--space-lg);
+            background: var(--bg-secondary);
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            flex-wrap: wrap;
+            gap: var(--space-sm);
+        }
+
+        .result-label {
+            font-size: var(--font-sm);
+            font-weight: 500;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .badge {
+            padding: var(--space-xs) var(--space-base);
+            border-radius: 20px;
+            font-size: var(--font-xs);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-family: var(--font-mono);
+        }
+
+        .badge-rule {
+            background: var(--accent);
+            color: white;
+        }
+
+        .badge-valid {
+            background: var(--success);
+            color: white;
+        }
+
+        .badge-invalid {
+            background: var(--warning);
+            color: white;
+        }
+
+        .confidence-bar {
+            display: flex;
+            align-items: center;
+            gap: var(--space-base);
+        }
+
+        .confidence-track {
+            width: clamp(60px, 15vw, 80px);
+            height: 6px;
+            background: var(--bg-tertiary);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .confidence-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), var(--success));
+            border-radius: 3px;
+            transition: var(--transition);
+        }
+
+        .confidence-text {
+            font-size: var(--font-sm);
+            font-weight: 600;
+            color: var(--text-primary);
+            min-width: 32px;
+            font-family: var(--font-mono);
+        }
+
+        .explanation {
+            padding: var(--space-lg);
+            background: var(--bg-secondary);
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            margin-bottom: var(--space-xl);
+        }
+
+        .explanation-text {
+            font-size: var(--font-sm);
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .chart-container {
+            height: clamp(180px, 30vh, 220px);
+            background: var(--bg-secondary);
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            padding: var(--space-lg);
+        }
+
+        .info-box {
+            padding: var(--space-xl);
+            margin-bottom: var(--space-2xl);
+            background: var(--bg-tertiary);
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+        }
+
+        .info-title {
+            font-size: var(--font-sm);
+            font-weight: 600;
+            color: var(--accent);
+            margin-bottom: var(--space-sm);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-family: var(--font-mono);
+        }
+
+        .info-text {
+            font-size: var(--font-sm);
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--accent);
+        }
+
+        /* Tooltip styles */
+        .tooltip-icon {
+            display: inline-block;
+            margin-left: 8px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--accent);
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+            text-align: center;
+            line-height: 16px;
+            cursor: help;
+            position: relative;
+            vertical-align: middle;
+        }
+
+        .tooltip-icon:hover::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1a1a1a;
+            color: #f0f0f0;
+            border: 1px solid #404040;
+            border-radius: 8px;
+            padding: 16px;
+            white-space: pre-line;
+            font-size: 13px;
+            font-weight: 400;
+            line-height: 1.5;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            min-width: 280px;
+            max-width: 380px;
+            z-index: 1000;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+            text-transform: none;
+            letter-spacing: normal;
+        }
+
+        .tooltip-icon:hover::before {
+            content: '';
+            position: absolute;
+            bottom: 115%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 6px solid transparent;
+            border-top-color: var(--border);
+            z-index: 1000;
+        }
+
+        /* Mobile adjustments */
+        @media (max-width: 767px) {
+            .main {
+                grid-template-columns: 1fr;
+                grid-template-rows: 1fr auto;
+                gap: 0;
+            }
+            
+            .sidebar {
+                border-right: none;
+                border-top: 1px solid var(--border);
+                max-height: 35vh;
+                order: 2;
+            }
+            
+            .content {
+                order: 1;
+                min-height: 65vh;
+                padding: var(--space-lg);
+            }
+            
+            .sidebar {
+                padding: var(--space-base);
+            }
+            
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: var(--space-base);
+                padding: var(--space-base) var(--space-lg);
+                min-height: auto;
+            }
+            
+            .header-content {
+                width: 100%;
+            }
+            
+            .theme-toggle {
+                align-self: flex-end;
+                padding: var(--space-sm) var(--space-base);
+            }
+            
+            .equation-display {
+                flex-direction: column;
+                gap: var(--space-sm);
+            }
+            
+            .result-item {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            /* Mobile tooltip adjustments */
+            .tooltip-icon:hover::after {
+                min-width: 240px;
+                max-width: 300px;
+                font-size: 12px;
+                padding: 14px;
+                bottom: 130%;
+                line-height: 1.4;
+            }
+            
+            .tooltip-icon {
+                width: 14px;
+                height: 14px;
+                font-size: 11px;
+                line-height: 14px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app">
+        <header class="header">
+            <div class="header-content">
+                <h1 class="title">GRAPH NEURAL TUTOR</h1>
+                <p class="subtitle">AI-powered algebraic transformation analysis</p>
+            </div>
+            <button class="theme-toggle" id="theme-toggle">
+                <span id="theme-icon">🌙</span>
+                <span id="theme-text">Dark</span>
+            </button>
+        </header>
+
+        <main class="main">
+            <aside class="sidebar">
+                <div class="section">
+                    <div class="info-box">
+                        <div class="info-title">System Info</div>
+                        <div class="info-text">
+                            Analyzes algebraic transformations by comparing before/after equations to identify rules, validate steps, and provide confidence scores.
+                        </div>
+                    </div>
+
+                    <form id="analysis-form">
+                        <div class="form-group">
+                            <label class="label">
+                                Original Equation
+                                <span class="tooltip-icon" data-tooltip="Enter your starting equation before any transformation.
+
+Examples:
+  Linear: 3*x + 5 = 11
+  Quadratic: x^2 + 5*x + 6 = 0
+  Functions: sin(x) = 1/2, log(x) = 3
+  Fractions: x/2 + x/3 = 5
+  Multi-variable: 2*a + 3*b = 7
+
+Syntax tips:
+  Use * for multiplication (2*x)
+  Use ** for powers (x**2)
+  Functions need parentheses: sin(x), log(x)
+  
+The system accepts many formats including 2x, x^2, √x, etc.">ⓘ</span>
+                            </label>
+                            <input type="text" class="input" id="original-equation" 
+                                   placeholder="3*x + 5 = 11" value="4*x + 5 = 11">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="label">
+                                Transformed Equation
+                                <span class="tooltip-icon" data-tooltip="Enter the equation after applying your transformation.
+
+Common transformations:
+  Subtract constant: 3*x = 6
+  Expand: x^2 + 5*x + 6 = 0
+  Factor: (x + 2)*(x + 3) = 0
+  Simplify: x = 2
+  Solve: x = 4
+
+Important notes:
+  Must be mathematically equivalent to the original
+  System validates the transformation automatically
+  Use the same variable names (x, y, etc.)">ⓘ</span>
+                            </label>
+                            <input type="text" class="input" id="transformed-equation" 
+                                   placeholder="3*x = 6" value="4*x = 6">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="label">Model</label>
+                            <select class="select" id="model-select">
+                                <option value="main">GNT-Main (GAT + Transformer)</option>
+                                <option value="simple">GNT-Simple (GCN)</option>
+                                <option value="minimal">GNT-Minimal (MLP)</option>
+                            </select>
+                        </div>
+
+                        <button type="submit" class="btn" id="analyze-btn">
+                            <span id="btn-text">Analyze</span>
+                            <div class="spinner" id="spinner"></div>
+                        </button>
+                    </form>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">Examples</div>
+                    <div class="examples-container" id="examples-container">
+                        <!-- Examples loaded here -->
+                    </div>
+                </div>
+            </aside>
+
+            <div class="content">
+                <div class="result-section">
+                    <div class="empty-state" id="empty-state">
+                        <div class="empty-icon">🧮</div>
+                        <p>Enter equations and analyze to see results</p>
+                    </div>
+
+                    <div class="results" id="results">
+                        <div class="equation-display">
+                            <div class="eq-box" id="display-original">Eq(4*x + 5, 11)</div>
+                            <div class="arrow">→</div>
+                            <div class="eq-box" id="display-transformed">Eq(4*x, 6)</div>
+                        </div>
+
+                        <div class="result-grid">
+                            <div class="result-item">
+                                <span class="result-label">Rule</span>
+                                <div>
+                                    <span class="badge badge-rule" id="rule-result">sub_const</span>
+                                    <span style="font-size: var(--font-xs); color: var(--text-tertiary); margin-left: var(--space-sm);" id="rule-confidence">(85%)</span>
+                                </div>
+                            </div>
+
+                            <div class="result-item">
+                                <span class="result-label">Valid</span>
+                                <span class="badge badge-valid" id="validity-result">✓</span>
+                            </div>
+
+                            <div class="result-item">
+                                <span class="result-label">Confidence</span>
+                                <div class="confidence-bar">
+                                    <div class="confidence-track">
+                                        <div class="confidence-fill" id="confidence-fill" style="width: 85%"></div>
+                                    </div>
+                                    <span class="confidence-text" id="confidence-text">85%</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="explanation">
+                            <div class="explanation-text" id="rule-explanation">
+                                This rule involves subtracting the same constant from both sides of an equation.
+                            </div>
+                        </div>
+
+                        <div class="chart-container">
+                            <canvas id="confidence-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let confidenceChart = null;
+
+        // Theme toggle functionality
+        function initTheme() {
+            const themeToggle = document.getElementById('theme-toggle');
+            const themeIcon = document.getElementById('theme-icon');
+            const themeText = document.getElementById('theme-text');
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            updateThemeButton(savedTheme, themeIcon, themeText);
+            
+            themeToggle.addEventListener('click', () => {
+                const currentTheme = document.documentElement.getAttribute('data-theme');
+                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                
+                document.documentElement.setAttribute('data-theme', newTheme);
+                localStorage.setItem('theme', newTheme);
+                updateThemeButton(newTheme, themeIcon, themeText);
+                
+                // Update chart colors if chart exists
+                if (confidenceChart) {
+                    updateChartTheme();
+                }
+            });
+        }
+        
+        function updateThemeButton(theme, icon, text) {
+            if (theme === 'light') {
+                icon.textContent = '☀️';
+                text.textContent = 'Light';
+            } else {
+                icon.textContent = '🌙';
+                text.textContent = 'Dark';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            initTheme();
+            loadExamples();
+        });
+
+        async function loadExamples() {
+            try {
+                const response = await fetch('/api/examples');
+                const examples = await response.json();
+                
+                const container = document.getElementById('examples-container');
+                container.innerHTML = examples.slice(0, 6).map(example => `
+                    <div class="example" onclick="useExample('${example.original}', '${example.transformed}')">
+                        <div class="example-eq">${example.original}</div>
+                        <div class="example-arrow">→</div>
+                        <div class="example-eq">${example.transformed}</div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading examples:', error);
+            }
+        }
+
+        function useExample(original, transformed) {
+            document.getElementById('original-equation').value = original;
+            document.getElementById('transformed-equation').value = transformed;
+        }
+
+        document.getElementById('analysis-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const original = document.getElementById('original-equation').value;
+            const transformed = document.getElementById('transformed-equation').value;
+            const model = document.getElementById('model-select').value;
+            
+            if (!original || !transformed) {
+                alert('Please enter both equations');
+                return;
+            }
+
+            const button = document.getElementById('analyze-btn');
+            const btnText = document.getElementById('btn-text');
+            const spinner = document.getElementById('spinner');
+            
+            btnText.style.display = 'none';
+            spinner.style.display = 'block';
+            button.disabled = true;
+
+            try {
+                const response = await fetch('/api/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        original: original,
+                        transformed: transformed,
+                        model: model
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.error) {
+                    alert('Error: ' + result.error);
+                    return;
+                }
+
+                displayResults(result, original, transformed);
+                
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred while analyzing the transformation');
+            } finally {
+                btnText.style.display = 'block';
+                spinner.style.display = 'none';
+                button.disabled = false;
+            }
+        });
+
+        function displayResults(result, original, transformed) {
+            document.getElementById('empty-state').style.display = 'none';
+            document.getElementById('results').classList.add('show');
+
+            document.getElementById('display-original').textContent = `Eq(${original})`;
+            document.getElementById('display-transformed').textContent = `Eq(${transformed})`;
+
+            document.getElementById('rule-result').textContent = result.rule_prediction;
+            const maxConfidence = Math.max(...result.rule_confidence) * 100;
+            document.getElementById('rule-confidence').textContent = `(${maxConfidence.toFixed(0)}%)`;
+
+            const validityBadge = document.getElementById('validity-result');
+            if (result.is_valid) {
+                validityBadge.textContent = '✓';
+                validityBadge.className = 'badge badge-valid';
+            } else {
+                validityBadge.textContent = '✗';
+                validityBadge.className = 'badge badge-invalid';
+            }
+
+            const confidence = (result.validity_score * 100).toFixed(0);
+            document.getElementById('confidence-fill').style.width = confidence + '%';
+            document.getElementById('confidence-text').textContent = confidence + '%';
+
+            const explanations = {
+                'add_const': 'Adding or subtracting constants from both sides.',
+                'sub_const': 'Subtracting constants from both sides.',
+                'div_coeff': 'Dividing both sides by the coefficient.',
+                'mul_denom': 'Multiplying both sides by the denominator.',
+                'expand': 'Expanding products using distributive property.',
+                'factor': 'Factoring expressions or equations.',
+                'pow_reduce': 'Applying power operations or taking roots.',
+                'combine_fracs': 'Combining fractions with common denominators.',
+                'sub_var': 'Subtracting variable terms from both sides.'
+            };
+            
+            document.getElementById('rule-explanation').textContent = 
+                explanations[result.rule_prediction] || 'Unknown transformation rule.';
+
+            updateConfidenceChart(result.rule_confidence);
+        }
+
+        function getChartColors() {
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            return {
+                background: isDark ? '#3b82f6' : '#0d6efd',
+                border: isDark ? '#3b82f6' : '#0d6efd',
+                gridColor: isDark ? '#333333' : '#dee2e6',
+                textColor: isDark ? '#b0b0b0' : '#6c757d'
+            };
+        }
+
+        function updateChartTheme() {
+            if (confidenceChart) {
+                const colors = getChartColors();
+                confidenceChart.data.datasets[0].backgroundColor = colors.background;
+                confidenceChart.data.datasets[0].borderColor = colors.border;
+                confidenceChart.options.scales.y.grid.color = colors.gridColor;
+                confidenceChart.options.scales.y.ticks.color = colors.textColor;
+                confidenceChart.options.scales.x.ticks.color = colors.textColor;
+                confidenceChart.update();
+            }
+        }
+
+        function updateConfidenceChart(confidences) {
+            const ctx = document.getElementById('confidence-chart').getContext('2d');
+            
+            if (confidenceChart) {
+                confidenceChart.destroy();
+            }
+
+            const rules = ['add_const', 'sub_const', 'div_coeff', 'mul_denom', 'expand', 'factor', 'pow_reduce', 'combine_fracs', 'sub_var'];
+            const data = confidences.map(c => (c * 100).toFixed(1));
+
+            confidenceChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: rules,
+                    datasets: [{
+                        label: 'Confidence (%)',
+                        data: data,
+                        backgroundColor: getChartColors().background,
+                        borderColor: getChartColors().border,
+                        borderWidth: 0,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            grid: {
+                                color: getChartColors().gridColor,
+                                lineWidth: 1
+                            },
+                            ticks: {
+                                color: getChartColors().textColor,
+                                font: {
+                                    size: 10
+                                }
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                color: getChartColors().textColor,
+                                maxRotation: 45,
+                                font: {
+                                    size: 9
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
