@@ -251,6 +251,251 @@ class MinimalMLPEncoder(nn.Module):
         data.node_embeddings = h
         return global_mean_pool(h, batch)
 
+class LSTMSequenceEncoder(nn.Module):
+    def __init__(self, hidden_dim=128, vocab_size=1000, embedding_dim=64):
+        super().__init__()
+        self.hidden_dim = hidden_dim
+        self.embedding_dim = embedding_dim
+        
+        # Better tokenization with character embeddings
+        self.char_embedding = nn.Embedding(128, embedding_dim)  # ASCII characters
+        
+        # Improved LSTM with multiple layers and dropout
+        self.lstm = nn.LSTM(
+            input_size=embedding_dim, 
+            hidden_size=hidden_dim, 
+            num_layers=2,
+            batch_first=True,
+            dropout=0.2,
+            bidirectional=True
+        )
+        
+        # Attention mechanism
+        self.attention = nn.MultiheadAttention(hidden_dim * 2, num_heads=4, batch_first=True)
+        
+        # Project to 128 dimensions for main model compatibility
+        self.projection = nn.Linear(hidden_dim * 2, 128)
+        
+        # Output heads with better architecture
+        self.rule_classifier = nn.Sequential(
+            nn.Linear(hidden_dim * 2, hidden_dim),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(hidden_dim, len(ALGEBRAIC_RULES))
+        )
+        self.validity_classifier = nn.Sequential(
+            nn.Linear(hidden_dim * 2, hidden_dim // 2),
+            nn.ReLU(),
+            nn.Linear(hidden_dim // 2, 1)
+        )
+        self.pointer_network = nn.Linear(hidden_dim * 2, 1)
+    
+    def forward(self, data):
+        # Handle batch vs single sample
+        if hasattr(data, 'equation_str') and isinstance(data.equation_str, list):
+            # Batch mode - multiple equations
+            batch_size = len(data.equation_str)
+            batch_embeddings = []
+            
+            for i in range(batch_size):
+                eq_str = str(data.equation_str[i])
+                
+                # Better character tokenization
+                tokens = []
+                for c in eq_str[:30]:  # Increased length limit
+                    tokens.append(min(ord(c), 127))  # Full ASCII range
+                
+                # Pad to fixed length
+                while len(tokens) < 30:
+                    tokens.append(0)
+                
+                tokens = torch.tensor(tokens, dtype=torch.long)
+                
+                # Character embeddings
+                char_emb = self.char_embedding(tokens)  # [30, embedding_dim]
+                
+                # LSTM processing with attention
+                lstm_out, (h_n, c_n) = self.lstm(char_emb.unsqueeze(0))  # [1, 30, hidden_dim*2]
+                
+                # Apply attention
+                attended, _ = self.attention(lstm_out, lstm_out, lstm_out)
+                
+                # Global average pooling with attention
+                final_hidden = torch.mean(attended.squeeze(0), dim=0)  # [hidden_dim*2]
+                
+                # Project to 128 dimensions
+                projected_128 = self.projection(final_hidden)  # [128]
+                batch_embeddings.append(projected_128)
+            
+            # Stack batch embeddings
+            batch_embeddings = torch.stack(batch_embeddings)  # [batch_size, 128]
+            
+            # Set node embeddings for the main model
+            data.node_embeddings = batch_embeddings
+            
+            return batch_embeddings
+        else:
+            # Single sample mode
+            eq_str = str(getattr(data, 'equation_str', 'x = 0'))
+            
+            # Better character tokenization
+            tokens = []
+            for c in eq_str[:30]:  # Increased length limit
+                tokens.append(min(ord(c), 127))  # Full ASCII range
+            
+            # Pad to fixed length
+            while len(tokens) < 30:
+                tokens.append(0)
+            
+            tokens = torch.tensor(tokens, dtype=torch.long)
+            
+            # Character embeddings
+            char_emb = self.char_embedding(tokens)  # [30, embedding_dim]
+            
+            # LSTM processing with attention
+            lstm_out, (h_n, c_n) = self.lstm(char_emb.unsqueeze(0))  # [1, 30, hidden_dim*2]
+            
+            # Apply attention
+            attended, _ = self.attention(lstm_out, lstm_out, lstm_out)
+            
+            # Global average pooling with attention
+            final_hidden = torch.mean(attended.squeeze(0), dim=0)  # [hidden_dim*2]
+            
+            # Project to 128 dimensions
+            projected_128 = self.projection(final_hidden)  # [128]
+            
+            # Set node embeddings for the main model
+            data.node_embeddings = projected_128.unsqueeze(0)  # [1, 128]
+            
+            return projected_128.unsqueeze(0)  # [1, 128]
+
+class TransformerSequenceEncoder(nn.Module):
+    def __init__(self, hidden_dim=128, vocab_size=1000, embedding_dim=64, num_heads=8):
+        super().__init__()
+        self.hidden_dim = hidden_dim
+        self.embedding_dim = embedding_dim
+        
+        # Better character embeddings
+        self.char_embedding = nn.Embedding(128, embedding_dim)
+        
+        # Positional encoding
+        self.pos_encoding = nn.Parameter(torch.randn(50, embedding_dim))
+        
+        # Improved transformer with proper dimensions
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=embedding_dim, 
+            nhead=8, 
+            dim_feedforward=hidden_dim * 2, 
+            batch_first=True,
+            dropout=0.1
+        )
+        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=3)
+        
+        # Project to 128 dimensions for main model compatibility
+        self.projection = nn.Linear(embedding_dim, 128)
+        
+        # Better output heads
+        self.rule_classifier = nn.Sequential(
+            nn.Linear(embedding_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(hidden_dim, len(ALGEBRAIC_RULES))
+        )
+        self.validity_classifier = nn.Sequential(
+            nn.Linear(embedding_dim, hidden_dim // 2),
+            nn.ReLU(),
+            nn.Linear(hidden_dim // 2, 1)
+        )
+        self.pointer_network = nn.Linear(embedding_dim, 1)
+    
+    def forward(self, data):
+        # Handle batch vs single sample
+        if hasattr(data, 'equation_str') and isinstance(data.equation_str, list):
+            # Batch mode - multiple equations
+            batch_size = len(data.equation_str)
+            batch_embeddings = []
+            
+            for i in range(batch_size):
+                eq_str = str(data.equation_str[i])
+                
+                # Better character tokenization
+                tokens = []
+                for c in eq_str[:30]:  # Increased length limit
+                    tokens.append(min(ord(c), 127))  # Full ASCII range
+                
+                # Pad to fixed length
+                while len(tokens) < 30:
+                    tokens.append(0)
+                
+                tokens = torch.tensor(tokens, dtype=torch.long)
+                
+                # Character embeddings with positional encoding
+                char_emb = self.char_embedding(tokens)  # [30, embedding_dim]
+                char_emb = char_emb + self.pos_encoding[:len(tokens)]  # Add positional encoding
+                
+                # Transformer processing
+                transformed = self.transformer(char_emb.unsqueeze(0))  # [1, 30, embedding_dim]
+                
+                # Global average pooling
+                pooled = torch.mean(transformed.squeeze(0), dim=0)  # [embedding_dim]
+                
+                # Project to 128 dimensions
+                projected_128 = self.projection(pooled)  # [128]
+                batch_embeddings.append(projected_128)
+            
+            # Stack batch embeddings
+            batch_embeddings = torch.stack(batch_embeddings)  # [batch_size, 128]
+            
+            # Set node embeddings for the main model
+            data.node_embeddings = batch_embeddings
+            
+            return batch_embeddings
+        else:
+            # Single sample mode
+            eq_str = str(getattr(data, 'equation_str', 'x = 0'))
+            
+            # Better character tokenization
+            tokens = []
+            for c in eq_str[:30]:  # Increased length limit
+                tokens.append(min(ord(c), 127))  # Full ASCII range
+            
+            # Pad to fixed length
+            while len(tokens) < 30:
+                tokens.append(0)
+            
+            tokens = torch.tensor(tokens, dtype=torch.long)
+            
+            # Character embeddings with positional encoding
+            char_emb = self.char_embedding(tokens)  # [30, embedding_dim]
+            char_emb = char_emb + self.pos_encoding[:len(tokens)]  # Add positional encoding
+            
+            # Transformer processing
+            transformed = self.transformer(char_emb.unsqueeze(0))  # [1, 30, embedding_dim]
+            
+            # Global average pooling
+            pooled = torch.mean(transformed.squeeze(0), dim=0)  # [embedding_dim]
+            
+            # Project to 128 dimensions
+            projected_128 = self.projection(pooled)  # [128]
+            
+            # Set node embeddings for the main model
+            data.node_embeddings = projected_128.unsqueeze(0)  # [1, 128]
+            
+            return projected_128.unsqueeze(0)  # [1, 128]
+    
+    def _tokenize_equation(self, equation_str):
+        # Simple character-level tokenization
+        tokens = []
+        for c in str(equation_str)[:20]:  # Limit to 20 characters
+            tokens.append(ord(c) % 64)  # Use smaller range
+        
+        # Pad to fixed length
+        while len(tokens) < 20:
+            tokens.append(0)
+        
+        tokens = torch.tensor(tokens, dtype=torch.long)
+        return tokens.unsqueeze(0)  # [1, 20]
+
 class DistinctAlgebraicGNN(nn.Module):
     def __init__(self, encoder_type="main", use_uncertainty=True):
         super().__init__()
@@ -259,9 +504,15 @@ class DistinctAlgebraicGNN(nn.Module):
             self.encoder = MainModelEncoder()
         elif encoder_type == "simple":
             self.encoder = SimpleGCNEncoder()
+        elif encoder_type == "minimal":
+            self.encoder = MinimalMLPEncoder()
+        elif encoder_type == "lstm":
+            self.encoder = LSTMSequenceEncoder()
+        elif encoder_type == "transformer":
+            self.encoder = TransformerSequenceEncoder()
         else:
             self.encoder = MinimalMLPEncoder()
-        head_size = 64 if encoder_type == "minimal" else 128
+        head_size = 64 if encoder_type in ["minimal", "lstm", "transformer"] else 128
         self.rule_head = nn.Sequential(
             nn.Linear(128, head_size),
             nn.ReLU(),
@@ -284,8 +535,16 @@ class DistinctAlgebraicGNN(nn.Module):
         val_logits = self.val_head(graph_emb)
         val_probs = torch.sigmoid(val_logits).squeeze(-1)
         query = self.ptr_head(graph_emb)
-        query_exp = query[data.batch]
-        ptr_scores = torch.sum(query_exp * data.node_embeddings, dim=-1)
+        
+        # Handle sequence models (single node) vs graph models (multiple nodes)
+        if hasattr(data, 'batch') and data.batch is not None and len(data.batch) > 1:
+            # Graph model with multiple nodes
+            query_exp = query[data.batch]
+            ptr_scores = torch.sum(query_exp * data.node_embeddings, dim=-1)
+        else:
+            # Sequence model with single node
+            ptr_scores = torch.sum(query * data.node_embeddings, dim=-1)
+        
         return rule_logits, val_probs, ptr_scores
 
 # =========================
@@ -303,10 +562,15 @@ def train_model_with_strategy(model, train_loader, val_loader, strategy="main", 
         optimizer = torch.optim.SGD(model.parameters(), lr=5e-3, momentum=0.9)
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.7)
         loss_weights = (2.0, 0.5, 1.0)
-    else:
+    elif strategy == "minimal":
         optimizer = torch.optim.RMSprop(model.parameters(), lr=2e-3)
         scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.95)
         loss_weights = (1.0, 2.0, 0.5)
+    else:
+        # Default strategy for sequence models
+        optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=3, gamma=0.9)
+        loss_weights = (1.0, 1.0, 1.0)
     best_f1 = 0
     patience = 5
     no_improvement = 0
@@ -429,7 +693,9 @@ def kfold_multiseed_eval(dataset, k=5, seeds=[42, 43, 44], epochs=10, batch_size
     for model_type, strategy, use_uncertainty in [
         ("main", "main", True),
         ("simple", "simple", False),
-        ("minimal", "minimal", False)
+        ("minimal", "minimal", False),
+        ("lstm", "minimal", False),
+        ("transformer", "minimal", False)
     ]:
         print(f"\n{'='*60}\n🧪 {model_type.upper()} MODEL: MULTI-SEED, {k}-FOLD CROSS-VALIDATION\n{'='*60}")
         all_metrics = {'rule_f1': [], 'rule_accuracy': [], 'validity_auc': [], 'pointer_mrr': [], 'pointer_top3': []}
@@ -553,7 +819,9 @@ def run_experiment(
     for model_type, strategy, use_uncertainty in [
         ("main", "main", True),
         ("simple", "simple", False),
-        ("minimal", "minimal", False)
+        ("minimal", "minimal", False),
+        ("lstm", "minimal", False),
+        ("transformer", "minimal", False)
     ]:
         print(f"\n{'='*60}\n🔬 {model_type.upper()} MODEL - ADVANCED EVALUATION\n{'='*60}")
         set_seed(42)
@@ -571,7 +839,7 @@ def run_experiment(
         show_errors(y_true, y_pred, eqs, n=5)
     # Summary Table
     summary = []
-    for model_type in ["main", "simple", "minimal"]:
+    for model_type in ["main", "simple", "minimal", "lstm", "transformer"]:
         row = {
             "Model": model_type,
             "F1 mean": results[model_type]["rule_f1_mean"],
@@ -610,6 +878,10 @@ def run_experiment(
         "Simple F1 std": all_perclass["simple"][1],
         "Minimal F1 mean": all_perclass["minimal"][0],
         "Minimal F1 std": all_perclass["minimal"][1],
+        "LSTM F1 mean": all_perclass["lstm"][0] if "lstm" in all_perclass else [0]*9,
+        "LSTM F1 std": all_perclass["lstm"][1] if "lstm" in all_perclass else [0]*9,
+        "Transformer F1 mean": all_perclass["transformer"][0] if "transformer" in all_perclass else [0]*9,
+        "Transformer F1 std": all_perclass["transformer"][1] if "transformer" in all_perclass else [0]*9,
     })
     perclass_df.to_csv("results/perclass_f1.csv", index=False)
     print("\n🎉 Experiment complete! All results saved to 'results/' directory.")

@@ -46,8 +46,12 @@ python web/app.py
 | **GNT-Main** | **0.724±0.032** | **0.756±0.028** | **0.892±0.018** |
 | GNT-Simple | 0.689±0.041 | 0.702±0.039 | 0.834±0.025 |
 | GNT-Minimal | 0.612±0.048 | 0.635±0.046 | 0.721±0.032 |
+| GNT-LSTM | 0.630±0.038 | 0.655±0.037 | 0.793±0.032 |
+| GNT-Transformer | 0.075±0.041 | 0.073±0.040 | 0.497±0.039 |
 
 *Results from 3-seed, 5-fold cross-validation with 95% bootstrap confidence intervals*
+
+**Full Evaluation**: Run `python main.py` for complete evaluation of all models including sequence baselines.
 
 ## 🏗️ Architecture
 
@@ -70,6 +74,14 @@ graph TB
 3. **Transformer Integration**: Sequence modeling for complex transformations
 4. **Uncertainty Quantification**: Bayesian approach for confidence estimation
 5. **Symbolic Validation**: SymPy integration for mathematical verification
+
+### Model Variants
+
+- **GNT-Main**: Full GNN with GAT + Transformer + Uncertainty quantification
+- **GNT-Simple**: Graph Convolutional Network baseline
+- **GNT-Minimal**: Multi-Layer Perceptron baseline
+- **GNT-LSTM**: LSTM sequence model baseline for comparison (fully integrated)
+- **GNT-Transformer**: Transformer sequence model baseline for comparison (fully integrated)
 
 ## 📁 Repository Structure
 

@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: Anonymous
+    given-names: Authors
+    note: "Anonymous submission for ATCM 2025"
+title: "Graph Neural Tutor for Rule-Aware Algebraic Reasoning"
+abstract: "A novel approach combining Graph Neural Networks with symbolic reasoning to analyze and classify algebraic transformations. Features GAT + Transformer + Uncertainty quantification for educational applications."
+version: 1.0.0
+date-released: 2025-01-15
+repository-code: "https://github.com/anonymouslyresearching/algebraic-gnn-tutor"
+keywords:
+  - "graph neural networks"
+  - "algebraic reasoning"
+  - "mathematics education"
+  - "symbolic computation"
+  - "machine learning"
+  - "educational technology"
+license: MIT
+identifiers:
+  - type: url
+    value: "https://github.com/anonymouslyresearching/algebraic-gnn-tutor"
+    description: "GitHub repository"
